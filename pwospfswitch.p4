@@ -24,9 +24,9 @@ header ethernet_t {
 }
 
 header cpu_metadata_t {
-    macAddr_t dstAddr;
-    macAddr_t srcAddr;
-    bit<16>   etherType;
+    bit<8>  fromCpu;
+    bit<16> origEtherType;
+    bit<16> srcPort;
 }
 
 header ipv4_t {
@@ -151,7 +151,20 @@ control MyIngress(inout headers hdr,
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
 
+    action cpu_meta_encap() {
+        hdr.cpu_metadata.setValid();
+        hdr.cpu_metadata.origEtherType = hdr.ethernet.etherType;
+        hdr.cpu_metadata.srcPort = (bit<16>) standard_metadata.ingress_port;
+        hdr.ethernet.etherType = TYPE_META;
+    }
+
+    action cpu_meta_decap() {
+        hdr.ethernet.etherType = hdr.cpu_metadata.origEtherType;
+        hdr.cpu_metadata.setInvalid();
+    }
+
     action send_to_cpu() {
+        cpu_meta_encap();
         standard_metadata.egress_spec = CPU_PORT;
     }
 
@@ -176,13 +189,15 @@ control MyIngress(inout headers hdr,
 
     apply {
 
-        if (hdr.ospf.isValid() && standard_metadata.ingress_port != CPU_PORT) {
+        if (standard_metadata.ingress_port == CPU_PORT)
+            cpu_meta_decap();
+
+        if (hdr.ospf.isValid() && standard_metadata.ingress_port != CPU_PORT)
             send_to_cpu();
-        } else if (hdr.ipv4.isValid() && hdr.ipv4.ttl > 0) {
+        else if (hdr.ipv4.isValid() && hdr.ipv4.ttl > 0)
             ipv4_lpm.apply();
-        } else {
+        else
             drop();
-        }
     }
 }
 

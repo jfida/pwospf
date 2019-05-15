@@ -26,6 +26,7 @@ class PWOSPFController(Thread):
         self.node = node
         self.db = {}
         self.hello_pkt = (Ether(dst="ff:ff:ff:ff:ff:ff")
+                          / CPUMetadata(fromCpu=1, origEtherType=0x800)
                           / IP(src=sw.IP(), dst=ALLSPFRouters)
                           / PWOSPFHeader(type=1, packet_length=32, router_ID=self.rid, area_ID=self.area_id)
                           / PWOSPFHello(network_mask=self.mask)
