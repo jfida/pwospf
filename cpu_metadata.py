@@ -10,8 +10,8 @@ class CPUMetadata(Packet):
     name = "CPUMetadata"
     fields_desc = [
         ByteField("fromCpu", 0),
-        ShortField("origEtherType", None),
-        ShortField("srcPort", None)
+        ShortField("origEtherType", 0),
+        ShortField("srcPort", 0)
     ]
 
 

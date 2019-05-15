@@ -3,6 +3,7 @@ from p4app import P4Mininet
 
 from controller import PWOSPFController
 from my_topo import MyTopo
+import time
 
 topo = MyTopo()
 net = P4Mininet(program='pwospfswitch.p4', topo=topo)
@@ -20,18 +21,13 @@ cpu1.start()
 cpu2.start()
 cpu3.start()
 
-# Add a mcast group for all ports (except for the CPU port)
-bcast_mgid = 1
-sw = net.get('s1')
-sw.addMulticastGroup(mgid=bcast_mgid, ports=range(2, 4))
-
 # Populate IPv4 forwarding table
 cpu1.add_routing_entry(2, h1)
 cpu1.add_routing_entry(3, h2)
 cpu1.add_routing_entry(4, h3)
 
 cpu2.add_routing_entry(2, h1)
-cpu2.add_routing_entry(3, h2)
+cpu2.add_routing_entry(3, h2)  # hardcoded controller rerouting to port 1, change port back to 3 when done
 cpu2.add_routing_entry(2, h3)
 
 cpu3.add_routing_entry(2, h1)
@@ -42,6 +38,7 @@ cpu3.add_routing_entry(3, h3)
 # net.ping([h1, h2])
 # net.ping([h1, h3])
 # net.ping([h2, h3])
+
 
 # Send test PWOSPF HELLO pkt
 cpu1.send_hello()

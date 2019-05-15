@@ -1,17 +1,19 @@
 from threading import Thread, Event
 from scapy.all import sendp
+# noinspection PyUnresolvedReferences
 from scapy.all import Packet, Ether, IP
 from pwospf_pkt import PWOSPFHeader, PWOSPFHello, PWOSPFLsu
 from async_sniff import sniff
 from cpu_metadata import CPUMetadata
 import time
 
-# ALLSPFRouters = "224.0.0.5"
-ALLSPFRouters = "10.0.0.2"
+ALLSPFRouters = "224.0.0.5"
+MGID = 1
+# ALLSPFRouters = "10.0.0.2"
 
 
 class PWOSPFController(Thread):
-    def __init__(self, sw, node, rid, area_id, mask, start_wait=0.3):
+    def __init__(self, sw, node, rid, area_id, mask, start_wait=0.5):
         super(PWOSPFController, self).__init__()
         self.sw = sw
         self.rid = rid
@@ -24,11 +26,11 @@ class PWOSPFController(Thread):
         self.node = node
         self.db = {}
         self.hello_pkt = (Ether(dst="ff:ff:ff:ff:ff:ff")
-                          / CPUMetadata(fromCpu=1)
                           / IP(src=sw.IP(), dst=ALLSPFRouters)
                           / PWOSPFHeader(type=1, packet_length=32, router_ID=self.rid, area_ID=self.area_id)
                           / PWOSPFHello(network_mask=self.mask)
                           )
+        self.multicast_setup()
 
     def add_routing_entry(self, port, host):
         self.sw.insertTableEntry(table_name='MyIngress.ipv4_lpm',
@@ -49,6 +51,7 @@ class PWOSPFController(Thread):
 
     def handle_pkt(self, pkt):
         pkt.show2()
+        print(pkt.haslayer(IP))
         # assert CPUMetadata in pkt, "Should only receive packets from switch with special header"
         return
 
@@ -57,8 +60,8 @@ class PWOSPFController(Thread):
 
     def send(self, *args, **override_kwargs):
         pkt = args[0]
-        assert CPUMetadata in pkt, "Controller must send packets with special header"
-        pkt[CPUMetadata].fromCpu = 1
+        # assert CPUMetadata in pkt, "Controller must send packets with special header"
+        # pkt[CPUMetadata].fromCpu = 1
         kwargs = dict(iface=self.iface, verbose=False)
         kwargs.update(override_kwargs)
         sendp(*args, **kwargs)
@@ -73,3 +76,12 @@ class PWOSPFController(Thread):
     def join(self, *args, **kwargs):
         self.stop_event.set()
         super(PWOSPFController, self).join(*args, **kwargs)
+
+    def multicast_setup(self):
+        self.sw.insertTableEntry(
+            table_name="MyIngress.ipv4_lpm",
+            match_fields={"hdr.ipv4.dstAddr": [ALLSPFRouters, 32]},
+            action_name="MyIngress.set_mgid",
+            action_params={"mgid": MGID},
+        )
+        self.sw.addMulticastGroup(mgid=MGID, ports=range(2, len(self.sw.ports)))
