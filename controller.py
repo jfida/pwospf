@@ -9,7 +9,13 @@ import time
 
 ALLSPFRouters = "224.0.0.5"
 MGID = 1
-# ALLSPFRouters = "10.0.0.2"
+
+
+def handle_pkt(pkt):
+    assert CPUMetadata in pkt, "Should only receive packets from switch with special header"
+    pkt.show2()
+    print(pkt.haslayer(IP))
+    return
 
 
 class PWOSPFController(Thread):
@@ -32,6 +38,9 @@ class PWOSPFController(Thread):
                           / PWOSPFHello(network_mask=self.mask)
                           )
         self.multicast_setup()
+        self.routing = {}
+        self.V = []
+        self.E = []
 
     def add_routing_entry(self, port, host):
         self.sw.insertTableEntry(table_name='MyIngress.ipv4_lpm',
@@ -50,12 +59,6 @@ class PWOSPFController(Thread):
                                  action_params={'port': port})
         self.port_for_mac[mac] = port
 
-    def handle_pkt(self, pkt):
-        pkt.show2()
-        print(pkt.haslayer(IP))
-        # assert CPUMetadata in pkt, "Should only receive packets from switch with special header"
-        return
-
     def send_hello(self):
         self.send(self.hello_pkt)
 
@@ -68,7 +71,7 @@ class PWOSPFController(Thread):
         sendp(*args, **kwargs)
 
     def run(self):
-        sniff(iface=self.iface, prn=self.handle_pkt, stop_event=self.stop_event)
+        sniff(iface=self.iface, prn=handle_pkt, stop_event=self.stop_event)
 
     def start(self, *args, **kwargs):
         super(PWOSPFController, self).start()
@@ -86,3 +89,47 @@ class PWOSPFController(Thread):
             action_params={"mgid": MGID},
         )
         self.sw.addMulticastGroup(mgid=MGID, ports=range(2, len(self.sw.ports)))
+
+    def compute_routing(self):
+        prev = {}
+
+        # init prev maps
+        for v in self.V:
+            prev[v] = {}
+            for w in self.V:
+                prev[v][w] = None
+        next = prev
+
+        # compute prev dict
+        for v in prev:
+            front, visit = [v], [v]
+            while front:
+                w = front.pop(0)
+                for x in [edge[1 - edge.index(w)] for edge in self.E if w in edge]:
+                    if x not in visit:
+                        visit.append(x)
+                        prev[v][x] = w
+                        front.append(x)
+
+        # compute next dict
+        for v in self.V:
+            for w in self.V:
+                if prev[v][w] == w:
+                    next[w][v] = w
+                else:
+                    next[w][v] = prev[v][w]
+
+        self.routing = next
+
+        def add_topo_vertex(self, subnet, mask, rid):
+            self.V.append(Vertex(subnet, mask, rid))
+
+        def add_topo_edge(vertex_1, vertex_2):
+            self.E.append((vertex_1, vertex_2))
+
+
+class Vertex:
+    def __init__(self, subnet, mask, rid):
+        self.subnet = subnet
+        self.mask = mask
+        self.rid = rid

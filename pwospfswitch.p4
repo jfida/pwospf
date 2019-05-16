@@ -97,8 +97,10 @@ parser MyParser(packet_in packet,
 
     state parse_cpu_metadata {
         packet.extract(hdr.cpu_metadata);
-        // TODO: verify if there is the need to check for `hdr.cpu_metadata.origEtherType`
-        transition parse_ipv4;
+        transition select(hdr.cpu_metadata.origEtherType) {
+            TYPE_IPV4: parse_ipv4;
+            default: accept;
+        }
     }
 
     state parse_ipv4 {
