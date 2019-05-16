@@ -4,8 +4,10 @@
 
 const bit<16> TYPE_IPV4  = 0x800;
 const bit<16> TYPE_META  = 0x80a;
+const bit<8>  TYPE_UDP   = 3;
 const bit<8>  TYPE_OSPF  = 89;
 const bit<8>  TYPE_HELLO = 1;
+const bit<8>  TYPE_LSU   = 4;
 
 const bit<9> CPU_PORT = 1;
 
@@ -44,6 +46,13 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
+header udp_t {
+    bit<16>   srcPort;
+    bit<16>   dstPort;
+    bit<16>   totalLen;
+    bit<16>   checksum;
+}
+
 header ospf_t {
     bit<8>      version;
     bit<8>      type;
@@ -61,6 +70,21 @@ header hello_t {
     bit<16>     padding;
 }
 
+header lsu_t {
+    bit<8>      version;
+    bit<8>      type;
+    bit<16>     packet_length;
+    bit<32>     router_ID;
+    bit<32>     area_ID;
+    bit<16>     checksum;
+    bit<16>     autype;
+    bit<64>     autentication;
+    bit<16>     sequence;
+    bit<16>     ttl;
+    bit<32>     adv_number;
+    bit<32>     adv;
+}
+
 struct metadata {
     /* empty */
 }
@@ -69,8 +93,10 @@ struct headers {
     ethernet_t      ethernet;
     cpu_metadata_t  cpu_metadata;
     ipv4_t          ipv4;
+    udp_t           udp;
     ospf_t          ospf;
     hello_t         hello;
+    lsu_t           lsu;
 }
 
 /*************************************************************************
@@ -107,20 +133,32 @@ parser MyParser(packet_in packet,
         packet.extract(hdr.ipv4);
         transition select(hdr.ipv4.protocol) {
             TYPE_OSPF: parse_ospf;
-            // TODO: missing UDP case
+            TYPE_UDP: parse_udp;
             default: accept;
         }
+    }
+
+    state parse_udp {
+        packet.extract(hdr.udp);
+        transition accept;
     }
 
     state parse_ospf {
         packet.extract(hdr.ospf);
         transition select(hdr.ospf.type) {
             TYPE_HELLO: parse_hello;
+            TYPE_LSU: parse_lsu;
+            default: accept;
         }
     }
 
     state parse_hello {
         packet.extract(hdr.hello);
+        transition accept;
+    }
+
+    state parse_lsu {
+        packet.extract(hdr.lsu);
         transition accept;
     }
 
@@ -248,8 +286,10 @@ control MyDeparser(packet_out packet, in headers hdr) {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.cpu_metadata);
         packet.emit(hdr.ipv4);
+        packet.emit(hdr.udp);
         packet.emit(hdr.ospf);
         packet.emit(hdr.hello);
+        packet.emit(hdr.lsu);
     }
 }
 
