@@ -248,7 +248,31 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
-    apply {  }
+
+    action override_destination(macAddr_t macAddr, ip4Addr_t ipAddr) {
+        hdr.ethernet.dstAddr = macAddr;
+        hdr.ipv4.dstAddr = ipAddr;
+    }
+
+    action drop() {
+        mark_to_drop();
+    }
+
+    table override {
+        key = { standard_metadata.egress_port: exact; }
+        actions = {
+            override_destination;
+            drop;
+            NoAction;
+        }
+        size = 256;
+        default_action = NoAction();
+    }
+
+
+    apply {
+        if (hdr.ipv4.isValid()) override.apply();
+    }
 }
 
 /*************************************************************************
