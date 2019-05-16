@@ -64,19 +64,22 @@ class PWOSPFController(Thread):
         sendp(*args, **kwargs)
 
     def handle_pkt(self, pkt):
-        # if PWOSPFHeader in pkt:
-        #     if pkt[PWOSPFHeader].type == 1:
-        #         ip_src = str(pkt[IP].src)
-        #         mac_src = str(pkt[Ether].src)
-        #         node = (ip_src, mac_src)
-        #         self.V.append(node)
-        #         self.E.append(((self.rid, self.node.MAC()), node))
-        #         if node not in self.routing:
-        #             self.recompute_routing()
-        #             print(self.routing)
-        #             self.add_routing_entry(node[0], node[1], pkt[CPUMetadata].srcPort)
-        #             print(self.routing)
-        pkt.show2()
+        if PWOSPFHeader in pkt:
+            if pkt[PWOSPFHeader].type == 1:
+                ip_src = str(pkt[IP].src)
+                mac_src = str(pkt[Ether].src)
+                node = (ip_src, mac_src)
+                self.V.append(node)
+                self.E.append(((self.rid, self.node.MAC()), node))
+                if node not in self.routing:
+                    self.recompute_routing()
+                    self.add_routing_entry(node[0], node[1], pkt[CPUMetadata].srcPor)
+                    print(self.routing)
+
+        else:
+            pkt.show2()
+            print(pkt.haslayer(IP))
+        return
 
     def run(self):
         sniff(iface=self.iface, prn=self.handle_pkt, stop_event=self.stop_event)
@@ -106,7 +109,7 @@ class PWOSPFController(Thread):
             prev[v] = {}
             for w in self.V:
                 prev[v][w] = None
-        next = prev
+        next_hop = prev
 
         # compute prev dict
         for v in prev:
@@ -123,17 +126,11 @@ class PWOSPFController(Thread):
         for v in self.V:
             for w in self.V:
                 if prev[v][w] == w:
-                    next[w][v] = w
+                    next_hop[w][v] = w
                 else:
-                    next[w][v] = prev[v][w]
+                    next_hop[w][v] = prev[v][w]
 
-        self.routing = next
-
-        def add_topo_vertex(self, subnet, mask, rid):
-            self.V.append(Vertex(subnet, mask, rid))
-
-        def add_topo_edge(vertex_1, vertex_2):
-            self.E.append((vertex_1, vertex_2))
+        self.routing = next_hop
 
 
 class Vertex:
