@@ -26,7 +26,7 @@ class PWOSPFController(Thread):
         self.db = {}
         self.hello_pkt = (Ether(dst="ff:ff:ff:ff:ff:ff")
                           / CPUMetadata(fromCpu=1, origEtherType=0x800)
-                          / IP(src=sw.IP(), dst=ALLSPFRouters)
+                          / IP(src=node.IP(), dst=ALLSPFRouters)
                           / PWOSPFHeader(type=1, packet_length=32, router_ID=self.rid, area_ID=self.area_id)
                           / PWOSPFHello(network_mask=self.mask)
                           )
@@ -64,18 +64,21 @@ class PWOSPFController(Thread):
         sendp(*args, **kwargs)
 
     def handle_pkt(self, pkt):
-        # if PWOSPFHeader in pkt:
-        #     if pkt[PWOSPFHeader].type == 1:
-        #         ip_src = str(pkt[IP].src)
-        #         mac_src = str(pkt[Ether].src)
-        #         node = (ip_src, mac_src)
-        #         self.V.append(node)
-        #         self.E.append(((self.rid, self.node.MAC()), node))
-        #         if node not in self.routing:
-        #             self.recompute_routing()
-        #             print(self.routing)
-        #             self.add_routing_entry(node[0], node[1], pkt[CPUMetadata].srcPort)
-        #             print(self.routing)
+        if PWOSPFHeader in pkt:
+            if pkt[PWOSPFHeader].type == 1:
+                ip_src = str(pkt[IP].src)
+                mac_src = str(pkt[Ether].src)
+                node = (ip_src, mac_src)
+                self.V.append(node)
+                self.E.append(((self.rid, self.node.MAC()), node))
+                # print(self.sw)
+                # print(self.V)
+                # print(self.E)
+                # if node not in self.routing:
+                #     self.recompute_routing()
+                #     print(self.routing)
+                #     self.add_routing_entry(node[0], node[1], pkt[CPUMetadata].srcPort)
+                #     print(self.routing)
         pkt.show2()
 
     def run(self):
