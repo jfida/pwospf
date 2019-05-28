@@ -22,17 +22,17 @@ cpu2.start()
 cpu3.start()
 
 # Populate IPv4 forwarding table
-cpu1.add_routing_entry(2, h1.IP(), h1.MAC())
-cpu1.add_routing_entry(3, h2.IP(), h2.MAC())
-cpu1.add_routing_entry(4, h3.IP(), h3.MAC())
-
-cpu2.add_routing_entry(2, h1.IP(), h1.MAC())
-cpu2.add_routing_entry(3, h2.IP(), h2.MAC())  # hardcoded controller rerouting to port 1, change port back to 3 when done
-cpu2.add_routing_entry(2, h3.IP(), h3.MAC())
-
-cpu3.add_routing_entry(2, h1.IP(), h1.MAC())
-cpu3.add_routing_entry(2, h2.IP(), h2.MAC())
-cpu3.add_routing_entry(3, h3.IP(), h3.MAC())
+# cpu1.add_routing_entry(2, h1.IP())
+# cpu1.add_routing_entry(3, h2.IP())
+# cpu1.add_routing_entry(4, h3.IP())
+#
+# cpu2.add_routing_entry(2, h1.IP())
+# cpu2.add_routing_entry(3, h2.IP())  # hardcoded controller rerouting to port 1, change port back to 3 when done
+# cpu2.add_routing_entry(2, h3.IP())
+#
+# cpu3.add_routing_entry(2, h1.IP())
+# cpu3.add_routing_entry(2, h2.IP())
+# cpu3.add_routing_entry(3, h3.IP())
 
 # Start the server with some key-values
 # net.ping([h1, h2])
@@ -40,6 +40,24 @@ cpu3.add_routing_entry(3, h3.IP(), h3.MAC())
 # net.ping([h2, h3])
 
 # Send test PWOSPF HELLO pkt
-cpu1.send_hello()
-cpu2.send_hello()
-cpu3.send_hello()
+# cpu1.send_hello()
+# cpu2.send_hello()
+# cpu3.send_hello()
+
+# cpu3.add_routing_entry(4, "10.0.1.3")
+
+# print("1:", cpu1.routing)
+# print("2:", cpu2.routing)
+# print("3:", cpu3.routing)
+
+time.sleep(5)
+
+cpu1.stop()
+cpu2.stop()
+cpu3.stop()
+
+cpu1.join()
+cpu2.join()
+cpu3.join()
+
+exit(0)

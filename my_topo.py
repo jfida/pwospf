@@ -19,7 +19,7 @@ class MyTopo(Topo):
         # hosts
         h1 = self.addHost('h1', ip="10.0.0.1", mac="00:00:00:00:00:01")
         h2 = self.addHost('h2', ip="10.0.0.2", mac="00:00:00:00:00:02")
-        h3 = self.addHost('h3', ip="10.0.0.5", mac="00:00:00:00:00:03")
+        h3 = self.addHost('h3', ip="10.0.0.3", mac="00:00:00:00:00:03")
 
         # switches
         s1 = self.addSwitch('s1')
@@ -27,9 +27,9 @@ class MyTopo(Topo):
         s3 = self.addSwitch('s3')
 
         # controllers
-        c1 = self.addHost('c1', ip="10.0.0.3", mac="00:00:00:00:01:01")
-        c2 = self.addHost('c2', ip="10.0.0.4", mac="00:00:00:00:01:02")
-        c3 = self.addHost('c3', ip="10.0.0.6", mac="00:00:00:00:01:03")
+        c1 = self.addHost('c1', ip="10.0.1.1", mac="00:00:00:00:01:01")
+        c2 = self.addHost('c2', ip="10.0.1.2", mac="00:00:00:00:01:02")
+        c3 = self.addHost('c3', ip="10.0.1.3", mac="00:00:00:00:01:03")
 
         # links
         self.addLink(s1, s2, port1=3, port2=2)

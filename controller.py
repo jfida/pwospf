@@ -1,4 +1,5 @@
-from threading import Thread, Event
+from threading import Thread, Event, Timer
+
 from scapy.all import sendp
 # noinspection PyUnresolvedReferences
 from scapy.all import Packet, Ether, IP
@@ -6,6 +7,7 @@ from pwospf_pkt import PWOSPFHeader, PWOSPFHello, PWOSPFLsu
 from async_sniff import sniff
 from cpu_metadata import CPUMetadata
 import time
+import threading
 
 ALLSPFRouters = "224.0.0.5"
 MGID = 1
@@ -14,6 +16,9 @@ MGID = 1
 class PWOSPFController(Thread):
     def __init__(self, sw, node, rid, area_id, mask, start_wait=0.5):
         super(PWOSPFController, self).__init__()
+        self.halt = False
+        self.listen_thread = None
+        self.hello_thread = None
         self.sw = sw
         self.rid = rid
         self.area_id = area_id
@@ -35,24 +40,17 @@ class PWOSPFController(Thread):
         self.V = []
         self.E = []
 
-    def add_routing_entry(self, port, ip, mac):
+    def add_routing_entry(self, port, ip):
         self.sw.insertTableEntry(table_name='MyIngress.ipv4_lpm',
                                  match_fields={'hdr.ipv4.dstAddr': [ip, 32]},
                                  action_name='MyIngress.ipv4_forward',
-                                 action_params={'dstAddr': mac,
+                                 action_params={'dstAddr': "ff:ff:ff:ff:ff:ff",
                                                 'port': port})
 
-    def add_mac_addr(self, mac, port):
-        # Don't re-add the mac-port mapping if we already have it:
-        if mac in self.port_for_mac: return
-
-        self.sw.insertTableEntry(table_name='MyIngress.fwd_l2',
-                                 match_fields={'hdr.ethernet.dstAddr': [mac]},
-                                 action_name='MyIngress.set_egr',
-                                 action_params={'port': port})
-        self.port_for_mac[mac] = port
-
     def send_hello(self):
+        print(self.halt)
+        if self.halt:
+            exit(0)
         self.send(self.hello_pkt)
 
     def send(self, *args, **override_kwargs):
@@ -64,14 +62,17 @@ class PWOSPFController(Thread):
         sendp(*args, **kwargs)
 
     def handle_pkt(self, pkt):
-        if PWOSPFHeader in pkt:
+        if PWOSPFHeader in pkt and pkt[CPUMetadata].srcPort != 0:
             if pkt[PWOSPFHeader].type == 1:
                 ip_src = str(pkt[IP].src)
-                mac_src = str(pkt[Ether].src)
-                node = (ip_src, mac_src)
-                self.V.append(node)
-                self.E.append(((self.rid, self.node.MAC()), node))
-                # print(self.sw)
+                node = (ip_src, pkt[CPUMetadata].srcPort)
+                if node not in self.V:
+                    self.V.append(node)
+                edge = ((self.node.IP(), 0), node)
+                if edge not in self.E:
+                    self.E.append(edge)
+                self.recompute_routing()
+                self.update_routing_entries()
                 # print(self.V)
                 # print(self.E)
                 # if node not in self.routing:
@@ -79,10 +80,20 @@ class PWOSPFController(Thread):
                 #     print(self.routing)
                 #     self.add_routing_entry(node[0], node[1], pkt[CPUMetadata].srcPort)
                 #     print(self.routing)
-        pkt.show2()
+        # pkt.show2()
 
     def run(self):
+        self.listen_thread = threading.Thread(target=self.sniff)
+        self.hello_thread = threading.Thread(target=self.hola)
+        self.listen_thread.start()
+        self.hello_thread.start()
+
+    def sniff(self):
         sniff(iface=self.iface, prn=self.handle_pkt, stop_event=self.stop_event)
+
+    def hola(self):
+        self.send_hello()
+        Timer(15, self.send_hello).start()
 
     def start(self, *args, **kwargs):
         super(PWOSPFController, self).start()
@@ -132,15 +143,19 @@ class PWOSPFController(Thread):
 
         self.routing = next
 
-        def add_topo_vertex(self, subnet, mask, rid):
-            self.V.append(Vertex(subnet, mask, rid))
+    def update_routing_entries(self):
+        me = (self.node.IP(), 0)
+        for dst in self.routing:
+            if dst != self.node.IP() and self.routing.get(dst).get(me) is not None:
+                out_port = self.routing.get(dst).get(me)[1]
+                print("Switch " + str(self.node) + " added ipv4 entry: (IP: " + dst[0] + ", PORT: " + str(out_port) + ")")
+                self.add_routing_entry(out_port, dst[0])
+                pass
 
-        def add_topo_edge(vertex_1, vertex_2):
-            self.E.append((vertex_1, vertex_2))
+    def stop(self):
+        self.halt = True
+        self.stop_event.set()
+        self.listen_thread.join()
+        self.hello_thread.join()
+        exit(0)
 
-
-class Vertex:
-    def __init__(self, subnet, mask, rid):
-        self.subnet = subnet
-        self.mask = mask
-        self.rid = rid
